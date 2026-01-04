@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NYCHA Outages — Live + History</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 10px 0 14px; }
+    select, input { padding:8px 10px; border:1px solid #ccc; border-radius:10px; }
+    button { padding:8px 12px; border:1px solid #ccc; background:#fff; border-radius:10px; cursor:pointer; }
+    table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; vertical-align: top; }
+    th { background: #f0f0f0; position: sticky; top: 0; }
+    tr:nth-child(even) { background: #fafafa; }
+    #status { margin: 10px 0; color:#444; }
+    code { background:#f7f7f7; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+
+<h1>NYCHA Outages</h1>
+
+<div class="row">
+  <label>
+    View:
+    <select id="view">
+      <option value="live">LIVE (current outages)</option>
+      <option value="history">HISTORY (all pages)</option>
+    </select>
+  </label>
+
+  <input id="q" placeholder="Search development, address, status, interruption…" />
+
+  <button id="reload">Reload</button>
+
+  <span id="download"></span>
+</div>
+
+<p id="status">Loading…</p>
+<table id="table"></table>
+
+<!-- Robust CSV parser (handles commas/quotes correctly) -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<script>
+  const FILES = {
+    live: "nycha_current_outages_LIVE.csv",
+    history: "nycha_history_all_pages.csv"
+  };
+
+  // Hide internal columns from display
+  const HIDE_COLUMNS = ["UNIQUE_KEY", "SCRAPED_AT"];
+
+  let allRows = [];
+  let headers = [];
+
+  function setDownloadLink(file) {
+    const el = document.getElementById("download");
+    el.innerHTML = `Download: <a href="./${file}">${file}</a>`;
+  }
+
+  function render(rows, queryText = "") {
+    const q = queryText.trim().toLowerCase();
+
+    const filtered = q
+      ? rows.filter(r => (
+          headers
+            .map(h => (r[h] ?? ""))
+            .join(" ")
+            .toLowerCase()
+            .includes(q)
+        ))
+      : rows;
+
+    const table = document.getElementById("table");
+
+    let html = "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>";
+
+    // Limit rendering so the page doesn't freeze if history is huge
+    const shown = filtered.slice(0, 1500);
+
+    for (const r of shown) {
+      html += "<tr>" + headers.map(h => `<td>${r[h] ?? ""}</td>`).join("") + "</tr>";
+    }
+
+    table.innerHTML = html;
+
+    let msg = `Rows shown: ${filtered.length}`;
+    if (filtered.length > shown.length) {
+      msg += ` (showing first ${shown.length}; use search to narrow)`;
+    }
+    document.getElementById("status").textContent = msg;
+  }
+
+  function loadCSV(which) {
+    const file = FILES[which];
+    setDownloadLink(file);
+
+    document.getElementById("status").textContent = `Loading ${file}…`;
+
+    Papa.parse(file + "?nocache=" + Date.now(), {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        allRows = results.data || [];
+
+        headers = allRows.length
+          ? Object.keys(allRows[0]).filter(h => !HIDE_COLUMNS.includes(h))
+          : [];
+
+        // Show warning if parser detected issues
+        if (results.errors && results.errors.length) {
+          document.getElementById("status").textContent =
+            `Loaded ${file} with warning: ${results.errors[0].message}`;
+        } else {
+          document.getElementById("status").textContent =
+            `Loaded ${file}. Rows: ${allRows.length}`;
+        }
+
+        render(allRows, document.getElementById("q").value);
+      },
+      error: (err) => {
+        document.getElementById("status").textContent =
+          `ERROR loading ${file}: ${err}`;
+      }
+    });
+  }
+
+  // UI hooks
+  document.getElementById("view").addEventListener("change", () => {
+    loadCSV(document.getElementById("view").value);
+  });
+
+  document.getElementById("q").addEventListener("input", (e) => {
+    render(allRows, e.target.value);
+  });
+
+  document.getElementById("reload").addEventListener("click", () => {
+    loadCSV(document.getElementById("view").value);
+  });
+
+  // Start on LIVE
+  loadCSV("live");
+</script>
+
+</body>
+</html>
