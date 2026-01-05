@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>NYCHA Outages — Live + History</title>
+  <title>NYCHA Heat and Hot Water Outage Tracker</title>
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 1100px; }
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 10px 0 14px; }
     select, input { padding:8px 10px; border:1px solid #ccc; border-radius:10px; }
     button { padding:8px 12px; border:1px solid #ccc; background:#fff; border-radius:10px; cursor:pointer; }
@@ -15,11 +16,20 @@
     tr:nth-child(even) { background: #fafafa; }
     #status { margin: 10px 0; color:#444; }
     code { background:#f7f7f7; padding:2px 6px; border-radius:6px; }
+    p { max-width: 900px; }
   </style>
 </head>
+
 <body>
 
-<h1>NYCHA Outages</h1>
+<h1>NYCHA Heat and Hot Water Outage Tracker</h1>
+
+<p>
+This project tracks heat and hot water outages in New York City Housing Authority
+buildings using scraped public data from the NYCHA outage dashboard.
+The site aims to make service disruptions more visible by showing where and how
+often outages occur over time.
+</p>
 
 <div class="row">
   <label>
@@ -38,9 +48,10 @@
 </div>
 
 <p id="status">Loading…</p>
+
 <table id="table"></table>
 
-<!-- Robust CSV parser (handles commas/quotes correctly) -->
+<!-- Robust CSV parser -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <script>
@@ -49,35 +60,29 @@
     history: "nycha_history_all_pages.csv"
   };
 
-  // Hide internal columns from display
   const HIDE_COLUMNS = ["UNIQUE_KEY", "SCRAPED_AT"];
 
   let allRows = [];
   let headers = [];
 
   function setDownloadLink(file) {
-    const el = document.getElementById("download");
-    el.innerHTML = `Download: <a href="./${file}">${file}</a>`;
+    document.getElementById("download").innerHTML =
+      `Download: <a href="./${file}">${file}</a>`;
   }
 
   function render(rows, queryText = "") {
     const q = queryText.trim().toLowerCase();
 
     const filtered = q
-      ? rows.filter(r => (
-          headers
-            .map(h => (r[h] ?? ""))
-            .join(" ")
-            .toLowerCase()
-            .includes(q)
-        ))
+      ? rows.filter(r =>
+          headers.map(h => (r[h] ?? "")).join(" ").toLowerCase().includes(q)
+        )
       : rows;
 
     const table = document.getElementById("table");
 
     let html = "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>";
 
-    // Limit rendering so the page doesn't freeze if history is huge
     const shown = filtered.slice(0, 1500);
 
     for (const r of shown) {
@@ -110,14 +115,8 @@
           ? Object.keys(allRows[0]).filter(h => !HIDE_COLUMNS.includes(h))
           : [];
 
-        // Show warning if parser detected issues
-        if (results.errors && results.errors.length) {
-          document.getElementById("status").textContent =
-            `Loaded ${file} with warning: ${results.errors[0].message}`;
-        } else {
-          document.getElementById("status").textContent =
-            `Loaded ${file}. Rows: ${allRows.length}`;
-        }
+        document.getElementById("status").textContent =
+          `Loaded ${file}. Rows: ${allRows.length}`;
 
         render(allRows, document.getElementById("q").value);
       },
@@ -128,7 +127,6 @@
     });
   }
 
-  // UI hooks
   document.getElementById("view").addEventListener("change", () => {
     loadCSV(document.getElementById("view").value);
   });
@@ -141,9 +139,12 @@
     loadCSV(document.getElementById("view").value);
   });
 
-  // Start on LIVE
   loadCSV("live");
 </script>
+
+</body>
+</html>
+
 
 </body>
 </html>
